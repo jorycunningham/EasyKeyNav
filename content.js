@@ -46,6 +46,7 @@ function initKeyboardNavigation() {
   console.log(`EasyKeyNav: Keyboard navigation enabled on ${platform}`);
   console.log(`EasyKeyNav: Use ${modifierKey}+Shift+M/H/N for quick navigation`);
   console.log(`EasyKeyNav: Use h/Shift+H for heading navigation, l/Shift+L for landmark navigation`);
+  console.log(`EasyKeyNav: Use ${modifierKey}+Shift+5/0 to tab 5/10 times`);
   document.addEventListener('keydown', handleKeyPress, { capture: true });
   addSkipLinks();
 }
@@ -142,6 +143,22 @@ function handleKeyPress(event) {
     return;
   }
 
+  // Alt+Shift+5 (Option+Shift+5 on Mac): Tab forward 5 times
+  // Note: event.key is '%' because that's what Shift+5 produces on US keyboards
+  if (event.key === '%' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault();
+    tabMultipleTimes(5);
+    return;
+  }
+
+  // Alt+Shift+0 (Option+Shift+0 on Mac): Tab forward 10 times
+  // Note: event.key is ')' because that's what Shift+0 produces on US keyboards
+  if (event.key === ')' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault();
+    tabMultipleTimes(10);
+    return;
+  }
+
   // H key: Navigate to next heading (cycles through all headings)
   // Works identically on all platforms
   if (event.key === 'h' && !event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
@@ -178,6 +195,47 @@ function handleKeyPress(event) {
   // Always use non-conflicting key combinations (e.g., Alt+Shift+Key)
   // Avoid using: Tab, Enter, Space, Arrow keys, Escape without good reason
   // These are essential for native keyboard navigation and screen readers
+}
+
+/**
+ * Tab forward multiple times
+ * @param {number} count - Number of times to tab
+ */
+function tabMultipleTimes(count) {
+  // Get all focusable elements
+  const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const focusableElements = Array.from(document.querySelectorAll(focusableSelector));
+
+  if (focusableElements.length === 0) {
+    return;
+  }
+
+  // Filter out hidden elements
+  const visibleFocusable = focusableElements.filter(el => {
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' &&
+           style.visibility !== 'hidden' &&
+           el.offsetParent !== null;
+  });
+
+  if (visibleFocusable.length === 0) {
+    return;
+  }
+
+  // Find current focused element index
+  const currentIndex = visibleFocusable.indexOf(document.activeElement);
+
+  // Calculate new index (wrap around if needed)
+  let newIndex;
+  if (currentIndex === -1) {
+    // No element currently focused, start from beginning
+    newIndex = Math.min(count - 1, visibleFocusable.length - 1);
+  } else {
+    newIndex = (currentIndex + count) % visibleFocusable.length;
+  }
+
+  // Focus the target element
+  visibleFocusable[newIndex].focus();
 }
 
 /**
@@ -892,6 +950,18 @@ function openHelpDialog() {
         <div class="easynav-help-shortcut">
           <span class="easynav-help-description">Go to navigation</span>
           <span class="easynav-help-keys">${modifierKey}+Shift+N</span>
+        </div>
+      </div>
+
+      <div class="easynav-help-section">
+        <h2>Quick Tab Navigation</h2>
+        <div class="easynav-help-shortcut">
+          <span class="easynav-help-description">Tab forward 5 times</span>
+          <span class="easynav-help-keys">${modifierKey}+Shift+5</span>
+        </div>
+        <div class="easynav-help-shortcut">
+          <span class="easynav-help-description">Tab forward 10 times</span>
+          <span class="easynav-help-keys">${modifierKey}+Shift+0</span>
         </div>
       </div>
 
