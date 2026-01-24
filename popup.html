@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EasyKeyNav</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="container">
+    <h1 id="extension-title">EasyKeyNav</h1>
+    <p id="extension-description">Keyboard navigation made easy</p>
+    <button
+      id="toggleButton"
+      type="button"
+      aria-pressed="true"
+      aria-describedby="extension-description">
+      Toggle Extension
+    </button>
+    <div
+      id="status-message"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      class="visually-hidden">
+    </div>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
