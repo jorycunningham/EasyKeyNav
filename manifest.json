@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "EasyKeyNav",
   "version": "1.0.0",
-  "description": "Accessible keyboard navigation for web pages. Works on Windows, Mac, and Linux. WCAG 2.2 AA compliant.",
+  "description": "Accessible keyboard navigation for web pages. Works on Windows, Mac, and Linux.",
   "permissions": [
     "activeTab",
     "storage"
