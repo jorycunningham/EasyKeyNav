@@ -989,6 +989,9 @@ function openHelpDialog() {
   // Set up focus trap
   setupFocusTrap();
 
+  // Close dialog when focus leaves it
+  setupFocusOutHandler();
+
   // Focus the close button
   closeButton.focus();
 
@@ -1057,5 +1060,33 @@ function setupFocusTrap() {
       firstFocusable.focus();
       return;
     }
+  });
+}
+
+/**
+ * Set up focus out handler to close dialog when focus leaves
+ */
+function setupFocusOutHandler() {
+  if (!helpDialogElement) {
+    return;
+  }
+
+  // Use a small delay to check if focus has moved outside the dialog
+  // This prevents the dialog from closing during internal focus changes
+  let focusCheckTimeout;
+
+  helpDialogElement.addEventListener('focusout', function() {
+    // Clear any pending timeout
+    clearTimeout(focusCheckTimeout);
+
+    // Wait a bit to see where focus goes
+    focusCheckTimeout = setTimeout(() => {
+      // Check if the newly focused element is outside the dialog
+      const isInsideDialog = helpDialogElement && helpDialogElement.contains(document.activeElement);
+
+      if (!isInsideDialog && helpDialogOpen) {
+        closeHelpDialog();
+      }
+    }, 10);
   });
 }
