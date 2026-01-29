@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EasyKeyNav",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Accessible keyboard navigation for web pages. Works on Windows, Mac, and Linux.",
   "permissions": [
     "activeTab",
