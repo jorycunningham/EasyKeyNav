@@ -112,7 +112,7 @@ function initKeyboardNavigation() {
   console.log(`EasyKeyNav: Keyboard navigation enabled on ${platform}`);
   console.log(`EasyKeyNav: Use ${modifierKey}+Shift+M/H/N for quick navigation`);
   console.log(`EasyKeyNav: Use h/Shift+H for heading navigation, l/Shift+L for landmark navigation`);
-  console.log(`EasyKeyNav: Use ${modifierKey}+Shift+5/0 to tab 5/10 times`);
+  console.log(`EasyKeyNav: Use ${modifierKey}+Shift+5 or ${modifierKey}+Shift+0 to tab 5/10 times`);
   console.log(`EasyKeyNav: Debug mode is ${DEBUG_FOCUS ? 'ON' : 'OFF'}`);
   document.addEventListener('keydown', handleKeyPress, { capture: true });
   addSkipLinks();
@@ -1004,7 +1004,20 @@ function openHelpDialog() {
       }
 
       .easynav-toggle-button[aria-pressed="true"] {
-        background: #1a73e8;
+        background: #2E7D32;
+        position: relative;
+      }
+
+      .easynav-toggle-button[aria-pressed="true"]::before {
+        content: '✓';
+        position: absolute;
+        left: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #fff;
+        font-size: 16px;
+        font-weight: bold;
+        line-height: 1;
       }
 
       .easynav-toggle-slider {
@@ -1066,7 +1079,7 @@ function openHelpDialog() {
         }
 
         .easynav-toggle-button[aria-pressed="true"] {
-          background: #8ab4f8;
+          background: #4CAF50;
         }
       }
 
@@ -1149,7 +1162,7 @@ function openHelpDialog() {
             type="button"
             role="switch"
             aria-pressed="${DEBUG_FOCUS ? 'true' : 'false'}"
-            aria-label="Toggle debug mode">
+            aria-label="Debug mode on">
             <span class="easynav-toggle-slider"></span>
           </button>
         </div>
