@@ -20,9 +20,75 @@ let lastFocusedElement = null;
 // Use userAgentData when available, fallback to userAgent
 const isMac = (navigator.userAgentData?.platform || navigator.userAgent).toUpperCase().includes('MAC');
 
+// Debug mode: Set to true to log focus changes (for development)
+let DEBUG_FOCUS = false; // Will be loaded from storage
+
+/**
+ * Debug logger for focus changes (development only)
+ * @param {string} action - Description of the action that caused the focus change
+ */
+function logFocusChange(action) {
+  if (!DEBUG_FOCUS) return;
+
+  const activeEl = document.activeElement;
+  const tagName = activeEl.tagName.toLowerCase();
+  const id = activeEl.id ? `#${activeEl.id}` : '';
+  const classes = activeEl.className ? `.${activeEl.className.split(' ').join('.')}` : '';
+  const role = activeEl.getAttribute('role') ? `[role="${activeEl.getAttribute('role')}"]` : '';
+  const text = activeEl.textContent ? activeEl.textContent.trim().substring(0, 30) : '';
+  const textPreview = text ? ` "${text}${text.length > 30 ? '...' : ''}"` : '';
+
+  console.log(`[EasyKeyNav Focus] ${action} -> <${tagName}${id}${classes}${role}>${textPreview}`);
+
+  // Apply visual scale effect in debug mode
+  applyDebugScale(activeEl);
+}
+
+// Keep track of the currently scaled element
+let currentlyScaledElement = null;
+
+/**
+ * Apply a visual scale effect to the focused element (debug mode only)
+ * @param {Element} element - The element to scale
+ */
+function applyDebugScale(element) {
+  if (!DEBUG_FOCUS) return;
+
+  // Don't scale body or html elements
+  if (element === document.body || element === document.documentElement) {
+    return;
+  }
+
+  // Remove scale from previously scaled element
+  if (currentlyScaledElement && currentlyScaledElement !== element) {
+    currentlyScaledElement.style.transform = '';
+    currentlyScaledElement.style.transition = '';
+  }
+
+  // Apply scale to the new element
+  element.style.transition = 'transform 0.2s ease-out';
+  element.style.transform = 'scale(1.05)';
+  currentlyScaledElement = element;
+
+  // Remove scale when element loses focus
+  const removeScale = () => {
+    if (element.style.transform === 'scale(1.05)') {
+      element.style.transform = '';
+      element.style.transition = '';
+    }
+    if (currentlyScaledElement === element) {
+      currentlyScaledElement = null;
+    }
+  };
+
+  element.addEventListener('blur', removeScale, { once: true });
+}
+
 // Initialize extension state
-chrome.storage.sync.get(['enabled'], (result) => {
+chrome.storage.sync.get(['enabled', 'debugMode'], (result) => {
   isEnabled = result.enabled !== false;
+  DEBUG_FOCUS = result.debugMode === true;
+
   if (isEnabled) {
     initKeyboardNavigation();
   }
@@ -47,6 +113,7 @@ function initKeyboardNavigation() {
   console.log(`EasyKeyNav: Use ${modifierKey}+Shift+M/H/N for quick navigation`);
   console.log(`EasyKeyNav: Use h/Shift+H for heading navigation, l/Shift+L for landmark navigation`);
   console.log(`EasyKeyNav: Use ${modifierKey}+Shift+5/0 to tab 5/10 times`);
+  console.log(`EasyKeyNav: Debug mode is ${DEBUG_FOCUS ? 'ON' : 'OFF'}`);
   document.addEventListener('keydown', handleKeyPress, { capture: true });
   addSkipLinks();
 }
@@ -236,6 +303,7 @@ function tabMultipleTimes(count) {
 
   // Focus the target element
   visibleFocusable[newIndex].focus();
+  logFocusChange(`Tab ${count} times`);
 }
 
 /**
@@ -248,6 +316,7 @@ function focusMainHeading() {
     const originalTabIndex = heading.getAttribute('tabindex');
     heading.setAttribute('tabindex', '-1');
     heading.focus();
+    logFocusChange('Focus main heading (Alt+Shift+H)');
 
     // Restore original tabindex after focus
     heading.addEventListener('blur', () => {
@@ -270,6 +339,7 @@ function focusMainContent() {
     const originalTabIndex = main.getAttribute('tabindex');
     main.setAttribute('tabindex', '-1');
     main.focus();
+    logFocusChange('Focus main content (Alt+Shift+M)');
 
     main.addEventListener('blur', () => {
       if (originalTabIndex === null) {
@@ -290,6 +360,7 @@ function focusNavigation() {
     const originalTabIndex = nav.getAttribute('tabindex');
     nav.setAttribute('tabindex', '-1');
     nav.focus();
+    logFocusChange('Focus navigation (Alt+Shift+N)');
 
     nav.addEventListener('blur', () => {
       if (originalTabIndex === null) {
@@ -369,8 +440,9 @@ function getHeadingLevel(heading) {
 /**
  * Make an element focusable and focus it, preserving original tabindex
  * @param {Element} element - The element to focus
+ * @param {string} action - Description of the action for debug logging
  */
-function makeElementFocusableAndFocus(element) {
+function makeElementFocusableAndFocus(element, action) {
   const originalTabIndex = element.getAttribute('tabindex');
 
   // Make element focusable if it's not already
@@ -380,6 +452,9 @@ function makeElementFocusableAndFocus(element) {
 
   // Focus the element
   element.focus();
+  if (action) {
+    logFocusChange(action);
+  }
 
   // Restore original tabindex after blur (if it wasn't already focusable)
   if (originalTabIndex === null) {
@@ -408,7 +483,8 @@ function navigateToNextHeading() {
   const heading = headings[currentHeadingIndex];
 
   // Focus the heading
-  makeElementFocusableAndFocus(heading);
+  const headingLevel = getHeadingLevel(heading);
+  makeElementFocusableAndFocus(heading, `Navigate to next heading (h) - H${headingLevel}`);
 }
 
 /**
@@ -434,7 +510,8 @@ function navigateToPreviousHeading() {
   const heading = headings[currentHeadingIndex];
 
   // Focus the heading
-  makeElementFocusableAndFocus(heading);
+  const headingLevel = getHeadingLevel(heading);
+  makeElementFocusableAndFocus(heading, `Navigate to previous heading (Shift+H) - H${headingLevel}`);
 }
 
 /**
@@ -626,7 +703,10 @@ function navigateToNextLandmark() {
   const landmark = landmarks[currentLandmarkIndex];
 
   // Focus the landmark
-  makeElementFocusableAndFocus(landmark);
+  const role = getLandmarkRole(landmark);
+  const label = getLandmarkLabel(landmark);
+  const landmarkDesc = label ? `${role} "${label}"` : role;
+  makeElementFocusableAndFocus(landmark, `Navigate to next landmark (l) - ${landmarkDesc}`);
 }
 
 /**
@@ -652,7 +732,10 @@ function navigateToPreviousLandmark() {
   const landmark = landmarks[currentLandmarkIndex];
 
   // Focus the landmark
-  makeElementFocusableAndFocus(landmark);
+  const role = getLandmarkRole(landmark);
+  const label = getLandmarkLabel(landmark);
+  const landmarkDesc = label ? `${role} "${label}"` : role;
+  makeElementFocusableAndFocus(landmark, `Navigate to previous landmark (Shift+L) - ${landmarkDesc}`);
 }
 
 /**
@@ -762,6 +845,7 @@ function openHelpDialog() {
   helpDialogElement.setAttribute('role', 'dialog');
   helpDialogElement.setAttribute('aria-modal', 'true');
   helpDialogElement.setAttribute('aria-labelledby', 'easynav-help-title');
+  helpDialogElement.setAttribute('aria-describedby', 'easynav-help-title easynav-help-intro');
 
   const modifierKey = isMac ? 'Option' : 'Alt';
   const helpKey = isMac ? 'Cmd' : 'Ctrl';
@@ -802,6 +886,18 @@ function openHelpDialog() {
         font-size: 1.5rem;
         font-weight: 600;
         color: #1a1a1a;
+      }
+
+      .easynav-visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
       }
 
       #easynav-help-close {
@@ -876,6 +972,57 @@ function openHelpDialog() {
         margin-left: 1rem;
       }
 
+      .easynav-debug-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-top: 2px solid #e0e0e0;
+        margin-top: 1rem;
+      }
+
+      .easynav-debug-label {
+        font-weight: 500;
+        color: #1a1a1a;
+      }
+
+      .easynav-toggle-button {
+        position: relative;
+        width: 48px;
+        height: 28px;
+        background: #ccc;
+        border: none;
+        border-radius: 14px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        padding: 0;
+      }
+
+      .easynav-toggle-button:focus-visible {
+        outline: 3px solid #1a73e8;
+        outline-offset: 2px;
+      }
+
+      .easynav-toggle-button[aria-pressed="true"] {
+        background: #1a73e8;
+      }
+
+      .easynav-toggle-slider {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 24px;
+        height: 24px;
+        background: #fff;
+        border-radius: 12px;
+        transition: transform 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .easynav-toggle-button[aria-pressed="true"] .easynav-toggle-slider {
+        transform: translateX(20px);
+      }
+
       @media (prefers-color-scheme: dark) {
         #easynav-help-content {
           background: #202124;
@@ -905,6 +1052,22 @@ function openHelpDialog() {
           background: #3c4043;
           color: #e8eaed;
         }
+
+        .easynav-debug-toggle {
+          border-top-color: #3c4043;
+        }
+
+        .easynav-debug-label {
+          color: #e8eaed;
+        }
+
+        .easynav-toggle-button {
+          background: #5f6368;
+        }
+
+        .easynav-toggle-button[aria-pressed="true"] {
+          background: #8ab4f8;
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -916,6 +1079,9 @@ function openHelpDialog() {
     <div id="easynav-help-content">
       <button id="easynav-help-close" type="button" aria-label="Close help dialog">×</button>
       <h1 id="easynav-help-title">Keyboard Shortcuts</h1>
+      <p id="easynav-help-intro" class="easynav-visually-hidden">
+        Available keyboard shortcuts for navigating the page. Press Escape to close this dialog.
+      </p>
 
       <div class="easynav-help-section">
         <h2>Heading Navigation</h2>
@@ -975,6 +1141,18 @@ function openHelpDialog() {
           <span class="easynav-help-description">Close this dialog</span>
           <span class="easynav-help-keys">Escape</span>
         </div>
+        <div class="easynav-debug-toggle">
+          <span class="easynav-debug-label">Debug mode on</span>
+          <button
+            id="easynav-debug-toggle-btn"
+            class="easynav-toggle-button"
+            type="button"
+            role="switch"
+            aria-pressed="${DEBUG_FOCUS ? 'true' : 'false'}"
+            aria-label="Toggle debug mode">
+            <span class="easynav-toggle-slider"></span>
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -986,6 +1164,25 @@ function openHelpDialog() {
   const closeButton = helpDialogElement.querySelector('#easynav-help-close');
   closeButton.addEventListener('click', closeHelpDialog);
 
+  // Set up debug toggle button
+  const debugToggleBtn = helpDialogElement.querySelector('#easynav-debug-toggle-btn');
+  debugToggleBtn.addEventListener('click', function() {
+    DEBUG_FOCUS = !DEBUG_FOCUS;
+    const isPressed = DEBUG_FOCUS;
+    this.setAttribute('aria-pressed', isPressed.toString());
+    console.log(`[EasyKeyNav] Debug mode ${isPressed ? 'enabled' : 'disabled'}`);
+
+    // Persist debug mode to storage
+    chrome.storage.sync.set({ debugMode: DEBUG_FOCUS });
+
+    // If debug mode is turned off, remove scale from currently scaled element
+    if (!DEBUG_FOCUS && currentlyScaledElement) {
+      currentlyScaledElement.style.transform = '';
+      currentlyScaledElement.style.transition = '';
+      currentlyScaledElement = null;
+    }
+  });
+
   // Set up focus trap
   setupFocusTrap();
 
@@ -994,6 +1191,7 @@ function openHelpDialog() {
 
   // Focus the close button
   closeButton.focus();
+  logFocusChange('Open help dialog (Ctrl+/ or Cmd+/)');
 
   helpDialogOpen = true;
 }
@@ -1017,6 +1215,20 @@ function closeHelpDialog() {
   // Restore focus to the previously focused element
   if (lastFocusedElement && document.contains(lastFocusedElement)) {
     lastFocusedElement.focus();
+    logFocusChange('Close help dialog - restore previous focus');
+  } else {
+    // Fallback to skip links or body
+    const skipLinks = document.getElementById('easynav-skip-links');
+    if (skipLinks) {
+      const skipLink = skipLinks.querySelector('a');
+      if (skipLink) {
+        skipLink.focus();
+        logFocusChange('Close help dialog - focus fallback to skip link');
+      }
+    } else {
+      document.body.focus();
+      logFocusChange('Close help dialog - focus fallback to body');
+    }
   }
 
   lastFocusedElement = null;
