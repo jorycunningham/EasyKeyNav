@@ -67,12 +67,12 @@ function applyDebugScale(element) {
 
   // Apply scale to the new element
   element.style.transition = 'transform 0.2s ease-out';
-  element.style.transform = 'scale(1.05)';
+  element.style.transform = 'scale(1.15)';
   currentlyScaledElement = element;
 
   // Remove scale when element loses focus
   const removeScale = () => {
-    if (element.style.transform === 'scale(1.05)') {
+    if (element.style.transform === 'scale(1.15)') {
       element.style.transform = '';
       element.style.transition = '';
     }
@@ -110,9 +110,9 @@ function initKeyboardNavigation() {
   const platform = isMac ? 'macOS' : 'Windows/Linux';
   const modifierKey = isMac ? 'Option' : 'Alt';
   console.log(`EasyKeyNav: Keyboard navigation enabled on ${platform}`);
-  console.log(`EasyKeyNav: Use ${modifierKey}+Shift+M/H/N for quick navigation`);
+  console.log(`EasyKeyNav: Use 1 for main heading, m for main content, n for navigation`);
   console.log(`EasyKeyNav: Use h/Shift+H for heading navigation, l/Shift+L for landmark navigation`);
-  console.log(`EasyKeyNav: Use ${modifierKey}+Shift+5 or ${modifierKey}+Shift+0 to tab 5/10 times`);
+  console.log(`EasyKeyNav: Use ${modifierKey}+Number to tab (e.g., ${modifierKey}+5 tabs forward 5 times, ${modifierKey}+Shift+3 tabs backward 3 times)`);
   console.log(`EasyKeyNav: Debug mode is ${DEBUG_FOCUS ? 'ON' : 'OFF'}`);
   document.addEventListener('keydown', handleKeyPress, { capture: true });
   addSkipLinks();
@@ -187,42 +187,43 @@ function handleKeyPress(event) {
 
   // Keyboard shortcuts - Cross-platform compatible
   // Note: On Mac, Alt key = Option key, Ctrl key = Control key, Meta key = Command key
-  // We use Alt+Shift to avoid conflicts with browser/OS/screen reader shortcuts
+  // We use simple letter keys for quick navigation (like h for headings, l for landmarks)
 
-  // Alt+Shift+H (Option+Shift+H on Mac): Go to main heading
-  if (event.key === 'H' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
-    event.preventDefault();
-    focusMainHeading();
-    return;
-  }
-
-  // Alt+Shift+M (Option+Shift+M on Mac): Go to main content
-  if (event.key === 'M' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+  // M key: Go to main content
+  if (event.key === 'm' && !event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
     event.preventDefault();
     focusMainContent();
     return;
   }
 
-  // Alt+Shift+N (Option+Shift+N on Mac): Go to navigation
-  if (event.key === 'N' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+  // N key: Go to navigation
+  if (event.key === 'n' && !event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
     event.preventDefault();
     focusNavigation();
     return;
   }
 
-  // Alt+Shift+5 (Option+Shift+5 on Mac): Tab forward 5 times
-  // Note: event.key is '%' because that's what Shift+5 produces on US keyboards
-  if (event.key === '%' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+  // Quick tab navigation: Alt+Number (Option+Number on Mac)
+  // Alt+1 through Alt+9: Move forward 1-9 tab stops
+  // Alt+0: Move forward 10 tab stops
+  // Alt+Shift+1 through Alt+Shift+9: Move backward 1-9 tab stops
+  // Alt+Shift+0: Move backward 10 tab stops
+  const numberMatch = event.key.match(/^[0-9]$/);
+  if (numberMatch && event.altKey && !event.ctrlKey && !event.metaKey) {
     event.preventDefault();
-    tabMultipleTimes(5);
+    const count = event.key === '0' ? 10 : parseInt(event.key);
+    if (event.shiftKey) {
+      tabMultipleTimes(-count); // Negative for backwards
+    } else {
+      tabMultipleTimes(count);
+    }
     return;
   }
 
-  // Alt+Shift+0 (Option+Shift+0 on Mac): Tab forward 10 times
-  // Note: event.key is ')' because that's what Shift+0 produces on US keyboards
-  if (event.key === ')' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+  // 1 key: Go to main heading (h1)
+  if (event.key === '1' && !event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
     event.preventDefault();
-    tabMultipleTimes(10);
+    focusMainHeading();
     return;
   }
 
@@ -265,8 +266,8 @@ function handleKeyPress(event) {
 }
 
 /**
- * Tab forward multiple times
- * @param {number} count - Number of times to tab
+ * Tab forward or backward multiple times
+ * @param {number} count - Number of times to tab (positive = forward, negative = backward)
  */
 function tabMultipleTimes(count) {
   // Get all focusable elements
@@ -295,28 +296,54 @@ function tabMultipleTimes(count) {
   // Calculate new index (wrap around if needed)
   let newIndex;
   if (currentIndex === -1) {
-    // No element currently focused, start from beginning
-    newIndex = Math.min(count - 1, visibleFocusable.length - 1);
+    // No element currently focused
+    if (count > 0) {
+      // Going forward, start from beginning
+      newIndex = Math.min(count - 1, visibleFocusable.length - 1);
+    } else {
+      // Going backward, start from end
+      newIndex = Math.max(visibleFocusable.length + count, 0);
+    }
   } else {
+    // Calculate new position with wrap-around
     newIndex = (currentIndex + count) % visibleFocusable.length;
+    // Handle negative wrap-around
+    if (newIndex < 0) {
+      newIndex = visibleFocusable.length + newIndex;
+    }
   }
 
   // Focus the target element
   visibleFocusable[newIndex].focus();
-  logFocusChange(`Tab ${count} times`);
+  const direction = count > 0 ? 'forward' : 'backward';
+  logFocusChange(`Tab ${Math.abs(count)} times ${direction}`);
 }
 
 /**
  * Focus the main heading (h1) on the page
  */
 function focusMainHeading() {
+  if (DEBUG_FOCUS) {
+    console.log('[EasyKeyNav] focusMainHeading called');
+  }
+
   const heading = document.querySelector('h1');
+
+  if (DEBUG_FOCUS) {
+    console.log('[EasyKeyNav] Found h1 element:', heading);
+  }
+
   if (heading) {
     // Make heading focusable temporarily
     const originalTabIndex = heading.getAttribute('tabindex');
     heading.setAttribute('tabindex', '-1');
     heading.focus();
-    logFocusChange('Focus main heading (Alt+Shift+H)');
+
+    if (DEBUG_FOCUS) {
+      console.log('[EasyKeyNav] Focused h1 element, activeElement is now:', document.activeElement);
+    }
+
+    logFocusChange('Focus main heading (1)');
 
     // Restore original tabindex after focus
     heading.addEventListener('blur', () => {
@@ -326,6 +353,10 @@ function focusMainHeading() {
         heading.setAttribute('tabindex', originalTabIndex);
       }
     }, { once: true });
+  } else {
+    if (DEBUG_FOCUS) {
+      console.warn('[EasyKeyNav] No h1 element found on page');
+    }
   }
 }
 
@@ -333,13 +364,27 @@ function focusMainHeading() {
  * Focus the main content area
  */
 function focusMainContent() {
+  if (DEBUG_FOCUS) {
+    console.log('[EasyKeyNav] focusMainContent called');
+  }
+
   // Look for main landmark or main element
   const main = document.querySelector('main, [role="main"]');
+
+  if (DEBUG_FOCUS) {
+    console.log('[EasyKeyNav] Found main element:', main);
+  }
+
   if (main) {
     const originalTabIndex = main.getAttribute('tabindex');
     main.setAttribute('tabindex', '-1');
     main.focus();
-    logFocusChange('Focus main content (Alt+Shift+M)');
+
+    if (DEBUG_FOCUS) {
+      console.log('[EasyKeyNav] Focused main element, activeElement is now:', document.activeElement);
+    }
+
+    logFocusChange('Focus main content (m)');
 
     main.addEventListener('blur', () => {
       if (originalTabIndex === null) {
@@ -348,6 +393,10 @@ function focusMainContent() {
         main.setAttribute('tabindex', originalTabIndex);
       }
     }, { once: true });
+  } else {
+    if (DEBUG_FOCUS) {
+      console.warn('[EasyKeyNav] No main element found on page. Add a <main> element or element with role="main"');
+    }
   }
 }
 
@@ -355,12 +404,26 @@ function focusMainContent() {
  * Focus the navigation area
  */
 function focusNavigation() {
+  if (DEBUG_FOCUS) {
+    console.log('[EasyKeyNav] focusNavigation called');
+  }
+
   const nav = document.querySelector('nav, [role="navigation"]');
+
+  if (DEBUG_FOCUS) {
+    console.log('[EasyKeyNav] Found nav element:', nav);
+  }
+
   if (nav) {
     const originalTabIndex = nav.getAttribute('tabindex');
     nav.setAttribute('tabindex', '-1');
     nav.focus();
-    logFocusChange('Focus navigation (Alt+Shift+N)');
+
+    if (DEBUG_FOCUS) {
+      console.log('[EasyKeyNav] Focused nav element, activeElement is now:', document.activeElement);
+    }
+
+    logFocusChange('Focus navigation (n)');
 
     nav.addEventListener('blur', () => {
       if (originalTabIndex === null) {
@@ -369,6 +432,10 @@ function focusNavigation() {
         nav.setAttribute('tabindex', originalTabIndex);
       }
     }, { once: true });
+  } else {
+    if (DEBUG_FOCUS) {
+      console.warn('[EasyKeyNav] No nav element found on page. Add a <nav> element or element with role="navigation"');
+    }
   }
 }
 
@@ -790,11 +857,10 @@ function addSkipLinks() {
 
   skipLinksContainer.appendChild(style);
 
-  // Add skip link to main content with platform-specific key labels
+  // Add skip link to main content
   const skipToMain = document.createElement('a');
   skipToMain.href = '#';
-  const modifierKey = isMac ? 'Option' : 'Alt';
-  skipToMain.textContent = `Skip to main content (${modifierKey}+Shift+M)`;
+  skipToMain.textContent = 'Skip to main content (m)';
   skipToMain.addEventListener('click', (e) => {
     e.preventDefault();
     focusMainContent();
@@ -1108,7 +1174,7 @@ function openHelpDialog() {
         </div>
         <div class="easynav-help-shortcut">
           <span class="easynav-help-description">Go to main heading (h1)</span>
-          <span class="easynav-help-keys">${modifierKey}+Shift+H</span>
+          <span class="easynav-help-keys">1</span>
         </div>
       </div>
 
@@ -1123,23 +1189,31 @@ function openHelpDialog() {
           <span class="easynav-help-keys">Shift+L</span>
         </div>
         <div class="easynav-help-shortcut">
-          <span class="easynav-help-description">Skip to main content</span>
-          <span class="easynav-help-keys">${modifierKey}+Shift+M</span>
+          <span class="easynav-help-description">Go to main content</span>
+          <span class="easynav-help-keys">m</span>
         </div>
         <div class="easynav-help-shortcut">
           <span class="easynav-help-description">Go to navigation</span>
-          <span class="easynav-help-keys">${modifierKey}+Shift+N</span>
+          <span class="easynav-help-keys">n</span>
         </div>
       </div>
 
       <div class="easynav-help-section">
         <h2>Quick Tab Navigation</h2>
         <div class="easynav-help-shortcut">
-          <span class="easynav-help-description">Tab forward 5 times</span>
-          <span class="easynav-help-keys">${modifierKey}+Shift+5</span>
+          <span class="easynav-help-description">Tab forward 1-9 times</span>
+          <span class="easynav-help-keys">${modifierKey}+1-9</span>
         </div>
         <div class="easynav-help-shortcut">
           <span class="easynav-help-description">Tab forward 10 times</span>
+          <span class="easynav-help-keys">${modifierKey}+0</span>
+        </div>
+        <div class="easynav-help-shortcut">
+          <span class="easynav-help-description">Tab backward 1-9 times</span>
+          <span class="easynav-help-keys">${modifierKey}+Shift+1-9</span>
+        </div>
+        <div class="easynav-help-shortcut">
+          <span class="easynav-help-description">Tab backward 10 times</span>
           <span class="easynav-help-keys">${modifierKey}+Shift+0</span>
         </div>
       </div>
